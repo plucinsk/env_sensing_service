@@ -150,6 +150,7 @@ void assert_nrf_callback(uint16_t line_num, const uint8_t * p_file_name)
 static void timer_timeout_handler(void * p_context)
 {
   static int prev_humidity = 0;
+  static int prev_temperature = 0;
 
   NRF_LOG_INFO("TIMER_TIMEOUT_HANDLER\n");
 
@@ -157,8 +158,13 @@ static void timer_timeout_handler(void * p_context)
   {
     humidity_characteristic_update(&m_env_sensing_service, &humidity);
   }
-
   prev_humidity = humidity;
+
+  if(temperature != prev_temperature)
+  {
+    temperature_characteristic_update(&m_env_sensing_service, &temperature);
+  }
+  prev_temperature = temperature;
 }
 
 static void timer_init(void)

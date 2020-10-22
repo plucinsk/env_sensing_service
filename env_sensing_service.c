@@ -61,19 +61,16 @@ void ble_env_sensing_service_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_co
     }
 }
 
-static ret_code_t humidity_char_add(ble_os_t * p_env_sensing_service)
+static ret_code_t temperature_char_add(ble_os_t * p_env_sensing_service)
 {
-    // ADD CUSTOM CHARACTERISTIC UUID
     ret_code_t err_code;
     ble_uuid_t char_uuid;
 
-    BLE_UUID_BLE_ASSIGN(char_uuid, BLE_UUID_HUMIDITY_CHARACTERISTIC);
+    BLE_UUID_BLE_ASSIGN(char_uuid, BLE_UUID_TEMPERATURE_CHARACTERISTIC);
 
-    //ADD R/W PROPERTIES TO CHARACTERISTIC
     ble_gatts_char_md_t char_md;
     memset(&char_md, 0, sizeof(char_md));
     char_md.char_props.read = 1;
-    char_md.char_props.write = 1;
 
     //CONFIGURE CCCD METADATA
     ble_gatts_attr_md_t cccd_md;
@@ -106,7 +103,57 @@ static ret_code_t humidity_char_add(ble_os_t * p_env_sensing_service)
     attr_char_value.p_value = value;
 
     //ADD CHARACTERISTIC TO THE SERVICE
-    err_code = sd_ble_gatts_characteristic_add(p_env_sensing_service->service_handle, &char_md, &attr_char_value, &p_env_sensing_service->char_handles);
+    err_code = sd_ble_gatts_characteristic_add(p_env_sensing_service->service_handle, &char_md, &attr_char_value, &p_env_sensing_service->temperature_handles);
+    APP_ERROR_CHECK(err_code);
+
+    return NRF_SUCCESS;
+}
+
+static ret_code_t humidity_char_add(ble_os_t * p_env_sensing_service)
+{
+    // ADD CUSTOM CHARACTERISTIC UUID
+    ret_code_t err_code;
+    ble_uuid_t char_uuid;
+
+    BLE_UUID_BLE_ASSIGN(char_uuid, BLE_UUID_HUMIDITY_CHARACTERISTIC);
+
+    //ADD R/W PROPERTIES TO CHARACTERISTIC
+    ble_gatts_char_md_t char_md;
+    memset(&char_md, 0, sizeof(char_md));
+    char_md.char_props.read = 1;
+
+    //CONFIGURE CCCD METADATA
+    ble_gatts_attr_md_t cccd_md;
+    memset(&cccd_md, 0, sizeof(cccd_md));
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&cccd_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&cccd_md.write_perm);
+    cccd_md.vloc = BLE_GATTS_VLOC_STACK;
+    char_md.p_cccd_md = &cccd_md;
+    char_md.char_props.notify = 1;
+
+    //CONFIGURE THE ATT METADATA
+    ble_gatts_attr_md_t attr_md;
+    memset(&attr_md, 0, sizeof(attr_md));
+    attr_md.vloc = BLE_GATTS_VLOC_STACK;
+
+    //SET R/W SECURITY LEVEL TO CHARACTERISTIC
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.read_perm);
+    BLE_GAP_CONN_SEC_MODE_SET_OPEN(&attr_md.write_perm);
+
+    //CONFIGURE THE CHARACTERISTIC VALUE ATTRIBUTE
+    ble_gatts_attr_t attr_char_value;
+    memset(&attr_char_value, 0, sizeof(attr_char_value));
+    attr_char_value.p_uuid = &char_uuid;
+    attr_char_value.p_attr_md = &attr_md;
+
+    //SET CHARACTERISTIC VALUE LENGTH
+    attr_char_value.max_len = 2;
+    attr_char_value.init_len = 2;
+    uint8_t value[4] = {0x00, 0x00};
+    attr_char_value.p_value = value;
+
+    //ADD CHARACTERISTIC TO THE SERVICE
+    err_code = sd_ble_gatts_characteristic_add(p_env_sensing_service->service_handle, &char_md, &attr_char_value, &p_env_sensing_service->humidity_handles);
     APP_ERROR_CHECK(err_code);
 
     return NRF_SUCCESS;
@@ -132,10 +179,8 @@ void env_sensing_service_init(ble_os_t * p_env_sensing_service)
     err_code = humidity_char_add(p_env_sensing_service);
     APP_ERROR_CHECK(err_code);
 
-    SEGGER_RTT_WriteString(0, "Executing env_sensing_service_init().\n"); // Print message to RTT to the application flow
-    SEGGER_RTT_printf(0, "Service UUID: 0x%#04x\n", service_uuid.uuid); // Print service UUID should match definition BLE_UUID_ENV_SENSING_SERVICE
-    SEGGER_RTT_printf(0, "Service UUID type: 0x%#02x\n", service_uuid.type); // Print UUID type. Should match BLE_UUID_TYPE_VENDOR_BEGIN. Search for BLE_UUID_TYPES in ble_types.h for more info
-    SEGGER_RTT_printf(0, "Service handle: 0x%#04x\n", p_env_sensing_service->service_handle); // Print out the service handle. Should match service handle shown in MCP under Attribute values
+    err_code = temperature_char_add(p_env_sensing_service);
+    APP_ERROR_CHECK(err_code);
 }
 
 void humidity_characteristic_update(ble_os_t *p_env_sensing_service, int *humidity)
@@ -146,7 +191,7 @@ void humidity_characteristic_update(ble_os_t *p_env_sensing_service, int *humidi
         ble_gatts_hvx_params_t hvx_params;
         memset(&hvx_params, 0, sizeof(hvx_params));
         
-        hvx_params.handle = p_env_sensing_service->char_handles.value_handle;
+        hvx_params.handle = p_env_sensing_service->humidity_handles.value_handle;
         hvx_params.type = BLE_GATT_HVX_NOTIFICATION;
         hvx_params.offset = 0;
         hvx_params.p_len = &len;
@@ -154,6 +199,22 @@ void humidity_characteristic_update(ble_os_t *p_env_sensing_service, int *humidi
 
         sd_ble_gatts_hvx(p_env_sensing_service->conn_handle, &hvx_params);
     }
+}
 
+void temperature_characteristic_update(ble_os_t *p_env_sensing_service, int *temperature)
+{
+    if (p_env_sensing_service->conn_handle != BLE_CONN_HANDLE_INVALID)
+    {
+        uint16_t len = 2;
+        ble_gatts_hvx_params_t hvx_params;
+        memset(&hvx_params, 0, sizeof(hvx_params));
+        
+        hvx_params.handle = p_env_sensing_service->temperature_handles.value_handle;
+        hvx_params.type = BLE_GATT_HVX_NOTIFICATION;
+        hvx_params.offset = 0;
+        hvx_params.p_len = &len;
+        hvx_params.p_data = (uint8_t *)temperature;
 
+        sd_ble_gatts_hvx(p_env_sensing_service->conn_handle, &hvx_params);
+    }
 }

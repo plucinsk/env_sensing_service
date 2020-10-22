@@ -46,14 +46,16 @@
 #include "ble_srv_common.h"
 #include "app_error.h"
 
-#define BLE_UUID_ENV_SENSING_SERVICE      0x181A 
+#define BLE_UUID_ENV_SENSING_SERVICE      0x181A
+#define BLE_UUID_TEMPERATURE_CHARACTERISTIC 0X2A6E
 #define BLE_UUID_HUMIDITY_CHARACTERISTIC  0x2A6F
 
 typedef struct
 {
     uint16_t                  conn_handle;
-    uint16_t                  service_handle;     /**< Handle of ADC Service (as provided by the BLE stack). */
-    ble_gatts_char_handles_t  char_handles;
+    uint16_t                  service_handle; 
+    ble_gatts_char_handles_t  humidity_handles;
+    ble_gatts_char_handles_t  temperature_handles;
 }ble_os_t;
 
 void ble_env_sensing_service_on_ble_evt(ble_evt_t const * p_ble_evt, void * p_context);
